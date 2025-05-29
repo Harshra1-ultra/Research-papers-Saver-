@@ -1,129 +1,438 @@
-import React, { useState, useEffect } from 'react';
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, doc, deleteDoc } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Research Paper Collector</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+            color: #333;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1, h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+        .form-section {
+            background-color: #f9fbfb;
+            padding: 25px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 18px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+            color: #555;
+        }
+        input[type="url"],
+        input[type="text"] {
+            width: calc(100% - 22px); /* Account for padding and border */
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 16px;
+            box-sizing: border-box; /* Include padding in width */
+        }
+        button {
+            padding: 12px 25px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 17px;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #218838;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .extract-button {
+            margin-top: 10px;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            align-self: flex-start;
+            transition: background-color 0.2s ease;
+        }
+        .action-button {
+            padding: 8px 12px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9em;
+            margin-right: 8px;
+            transition: background-color 0.2s ease;
+        }
+        .delete-button {
+            background-color: #dc3545;
+        }
+        .error {
+            color: #dc3545;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .success {
+            color: #28a745;
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .paper-list-section {
+            padding: 25px;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+            background-color: #f9fbfb;
+        }
+        .letter-group {
+            margin-bottom: 25px;
+        }
+        .letter-heading {
+            background-color: #e9ecef;
+            padding: 8px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            color: #495057;
+            font-size: 1.2em;
+            text-transform: uppercase;
+        }
+        ul {
+            list-style-type: none;
+            padding: 0;
+            margin: 0;
+        }
+        li.paper-item {
+            background-color: #ffffff;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 18px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            position: relative; /* For the delete button */
+        }
+        .paper-link {
+            font-size: 1.15em;
+            color: #007bff;
+            text-decoration: none;
+            font-weight: bold;
+            margin-bottom: 8px;
+            word-break: break-word; /* Prevent long links from breaking layout */
+        }
+        .paper-link:hover {
+            text-decoration: underline;
+        }
+        .keywords-display {
+            font-size: 0.95em;
+            color: #6c757d;
+            font-style: italic;
+            margin-top: 5px;
+        }
+        .paper-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 8px;
+        }
+        .no-papers {
+            text-align: center;
+            color: #6c757d;
+            padding: 20px;
+            border: 1px dashed #ced4da;
+            border-radius: 5px;
+        }
 
-// Define global variables for Firebase configuration (provided by the environment)
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
-const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0, 0, 0, 0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-header {
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            color: #2c3e50;
+            text-align: center;
+        }
+        .modal-body {
+            font-size: 1em;
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .modal-close-button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 1em;
+            display: block;
+            margin: 0 auto;
+            transition: background-color 0.2s ease;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Research Paper Collector</h1>
 
-// Main App component
-export default function App() {
-    const [linkInput, setLinkInput] = useState('');
-    const [headingInput, setHeadingInput] = useState('');
-    const [keywordsInput, setKeywordsInput] = useState('');
-    const [papers, setPapers] = useState([]);
-    const [isLoading, setIsLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [isAuthReady, setIsAuthReady] = useState(false);
-    const [message, setMessage] = useState({ text: '', type: '' }); // For success/error messages
+        <div class="form-section">
+            <form id="paperForm">
+                <div class="form-group">
+                    <label for="link">Paper Link:</label>
+                    <input type="url" id="link" placeholder="e.g., https://arxiv.org/abs/2301.00001" required>
+                </div>
 
-    // States for summary modal
-    const [showSummaryModal, setShowSummaryModal] = useState(false);
-    const [currentSummary, setCurrentSummary] = useState('');
-    const [currentPaperTitleForSummary, setCurrentPaperTitleForSummary] = useState('');
+                <button type="button" id="extractButton" class="extract-button">
+                    Extract Title & Keywords ✨
+                </button>
 
-    // States for delete confirmation modal
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [paperToDeleteId, setPaperToDeleteId] = useState(null);
+                <div class="form-group">
+                    <label for="heading">Paper Heading:</label>
+                    <input type="text" id="heading" placeholder="e.g., A Novel Approach to AI" required>
+                </div>
 
-    // Initialize Firebase and handle authentication
-    useEffect(() => {
-        try {
-            const app = initializeApp(firebaseConfig);
-            const firestoreDb = getFirestore(app);
-            const firebaseAuth = getAuth(app);
+                <div class="form-group">
+                    <label for="keywords">Keywords (comma-separated):</label>
+                    <input type="text" id="keywords" placeholder="e.g., AI, Machine Learning, Research" required>
+                </div>
 
-            setDb(firestoreDb);
-            setAuth(firebaseAuth);
+                <button type="submit" id="addPaperBtn">Add Paper</button>
+            </form>
+            <p id="message" class="error" style="display:none;"></p>
+        </div>
 
-            // Listen for authentication state changes
-            const unsubscribe = onAuthStateChanged(firebaseAuth, async (user) => {
-                if (user) {
-                    setUserId(user.uid);
-                } else {
-                    // Sign in anonymously if no user is authenticated
-                    try {
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(firebaseAuth, initialAuthToken);
-                        } else {
-                            await signInAnonymously(firebaseAuth);
-                        }
-                    } catch (authError) {
-                        console.error("Firebase Auth Error:", authError);
-                        setError("Failed to authenticate. Please try again.");
-                    }
+        <h2 style="margin-top: 40px;">Collected Papers</h2>
+        <div id="paperListContainer" class="paper-list-section">
+            <div id="paperList">
+                <p class="no-papers">No papers collected yet. Add one above!</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="summaryModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3 id="summaryModalHeader" class="modal-header"></h3>
+            <p id="summaryModalBody" class="modal-body"></p>
+            <button id="summaryModalCloseButton" class="modal-close-button">Close</button>
+        </div>
+    </div>
+
+    <div id="confirmModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content">
+            <h3 class="modal-header">Confirm Deletion</h3>
+            <p class="modal-body">Are you sure you want to delete this paper?</p>
+            <div class="modal-actions">
+                <button id="confirmDeleteBtn" class="action-button delete-button">Yes, Delete</button>
+                <button id="cancelDeleteBtn" class="action-button">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const paperForm = document.getElementById('paperForm');
+        const linkInput = document.getElementById('link');
+        const headingInput = document.getElementById('heading');
+        const keywordsInput = document.getElementById('keywords');
+        const paperList = document.getElementById('paperList');
+        const messageDisplay = document.getElementById('message');
+        const addPaperBtn = document.getElementById('addPaperBtn');
+        const extractButton = document.getElementById('extractButton');
+
+        // Modal elements
+        const summaryModal = document.getElementById('summaryModal');
+        const summaryModalHeader = document.getElementById('summaryModalHeader');
+        const summaryModalBody = document.getElementById('summaryModalBody');
+        const summaryModalCloseButton = document.getElementById('summaryModalCloseButton');
+
+        const confirmModal = document.getElementById('confirmModal');
+        const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+        const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+
+        let papers = []; // This will hold our paper data
+        let paperToDeleteId = null; // To store the ID of the paper to be deleted
+
+        // --- Utility Functions ---
+
+        // Display messages (error/success)
+        function showMessage(msg, type = 'error') {
+            messageDisplay.textContent = msg;
+            messageDisplay.className = type; // Set class to 'error' or 'success'
+            messageDisplay.style.display = 'block';
+            setTimeout(() => {
+                messageDisplay.style.display = 'none';
+            }, 3000); // Hide after 3 seconds
+        }
+
+        function setLoading(isLoading) {
+            addPaperBtn.disabled = isLoading;
+            extractButton.disabled = isLoading;
+            // Disable/enable other action buttons as needed
+            document.querySelectorAll('.action-button').forEach(btn => {
+                if (btn !== confirmDeleteBtn && btn !== cancelDeleteBtn) { // Don't disable modal buttons
+                    btn.disabled = isLoading;
                 }
-                setIsAuthReady(true); // Auth state is ready
             });
-
-            return () => unsubscribe(); // Cleanup auth listener
-        } catch (initError) {
-            console.error("Firebase Initialization Error:", initError);
-            setError("Failed to initialize Firebase. Check console for details.");
         }
-    }, []);
 
-    // Fetch papers from Firestore in real-time
-    useEffect(() => {
-        if (db && userId && isAuthReady) {
-            const papersCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/researchPapers`);
-            // Note: orderBy is commented out as per instructions to avoid potential index issues.
-            // Data will be sorted in client-side.
-            const q = query(papersCollectionRef); // , orderBy('heading', 'asc'));
+        // --- Data Storage and Retrieval ---
 
-            const unsubscribe = onSnapshot(q, (snapshot) => {
-                const fetchedPapers = snapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                // Sort papers by heading client-side
-                fetchedPapers.sort((a, b) => a.heading.localeCompare(b.heading));
-                setPapers(fetchedPapers);
-            }, (err) => {
-                console.error("Firestore Error:", err);
-                setError("Failed to load papers. Please try again.");
-            });
-
-            return () => unsubscribe(); // Cleanup snapshot listener
+        // Load papers from Local Storage
+        function loadPapers() {
+            const storedPapers = localStorage.getItem('researchPapers');
+            if (storedPapers) {
+                papers = JSON.parse(storedPapers);
+            }
         }
-    }, [db, userId, isAuthReady]);
 
-    // Function to display temporary messages (success/error)
-    const showMessage = (text, type) => {
-        setMessage({ text, type });
-        setTimeout(() => {
-            setMessage({ text: '', type: '' });
-        }, 3000); // Message disappears after 3 seconds
-    };
-
-    // Function to extract heading and keywords using LLM
-    const handleExtractFromLink = async () => {
-        if (!linkInput) {
-            setError("Please enter a link to extract from.");
-            return;
+        // Save papers to Local Storage
+        function savePapers() {
+            localStorage.setItem('researchPapers', JSON.stringify(papers));
         }
-        setIsLoading(true);
-        setError('');
 
-        try {
-            // Step 1: Use google_search to find the content related to the link
-            // This is a placeholder for a more robust web scraping mechanism.
-            // In a real scenario, you'd need a backend service to fetch and parse HTML.
-            // For now, we'll try to browse the link directly.
-            console.log(`Attempting to browse: ${linkInput}`);
-            const browsedContent = await new Promise((resolve, reject) => {
-                // Check if window.google_search is available in the environment
-                if (typeof window.google_search !== 'function') {
-                    reject(new Error("Browser content fetching tool (window.google_search) is not available in this environment."));
-                    return;
+        // --- Rendering Papers ---
+
+        function renderPapers() {
+            paperList.innerHTML = ''; // Clear existing list
+
+            if (papers.length === 0) {
+                paperList.innerHTML = '<p class="no-papers">No papers collected yet. Add one above!</p>';
+                return;
+            }
+
+            // Sort papers alphabetically by heading
+            const sortedPapers = [...papers].sort((a, b) => a.heading.localeCompare(b.heading));
+
+            // Group papers by the first letter of their heading
+            const groupedPapers = sortedPapers.reduce((acc, paper) => {
+                const firstLetter = paper.heading.charAt(0).toUpperCase();
+                if (!acc[firstLetter]) {
+                    acc[firstLetter] = [];
                 }
+                acc[firstLetter].push(paper);
+                return acc;
+            }, {});
+
+            // Render each letter group
+            const sortedLetters = Object.keys(groupedPapers).sort();
+            sortedLetters.forEach(letter => {
+                const letterGroupDiv = document.createElement('div');
+                letterGroupDiv.className = 'letter-group';
+
+                const letterHeading = document.createElement('h3');
+                letterHeading.className = 'letter-heading';
+                letterHeading.textContent = letter;
+                letterGroupDiv.appendChild(letterHeading);
+
+                const ul = document.createElement('ul');
+                groupedPapers[letter].forEach(paper => {
+                    const li = document.createElement('li');
+                    li.className = 'paper-item';
+                    li.setAttribute('data-id', paper.id); // Store ID for deletion
+
+                    const link = document.createElement('a');
+                    link.className = 'paper-link';
+                    link.href = paper.link;
+                    link.target = '_blank'; // Open in new tab
+                    link.rel = 'noopener noreferrer'; // Security best practice
+                    link.textContent = paper.heading;
+                    li.appendChild(link);
+
+                    const keywordsP = document.createElement('p');
+                    keywordsP.className = 'keywords-display';
+                    keywordsP.textContent = `Keywords: ${paper.keywords.join(', ')}`;
+                    li.appendChild(keywordsP);
+
+                    const paperActionsDiv = document.createElement('div');
+                    paperActionsDiv.className = 'paper-actions';
+
+                    const summarizeBtn = document.createElement('button');
+                    summarizeBtn.className = 'action-button';
+                    summarizeBtn.textContent = 'Summarize ✨';
+                    summarizeBtn.onclick = () => handleSummarizePaper(paper.link, paper.heading);
+                    paperActionsDiv.appendChild(summarizeBtn);
+
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'action-button delete-button';
+                    deleteBtn.textContent = 'Delete';
+                    deleteBtn.onclick = () => handleDeleteClick(paper.id);
+                    paperActionsDiv.appendChild(deleteBtn);
+
+                    li.appendChild(paperActionsDiv);
+                    ul.appendChild(li);
+                });
+                letterGroupDiv.appendChild(ul);
+                paperList.appendChild(letterGroupDiv);
+            });
+        }
+
+        // --- LLM and Browsing Tool Functions (Conditional Availability) ---
+
+        async function fetchContentFromLink(url) {
+            if (typeof window.google_search !== 'function') {
+                throw new Error("Browser content fetching tool (window.google_search) is not available in this environment. Cannot extract or summarize automatically.");
+            }
+
+            return new Promise((resolve, reject) => {
                 window.google_search({
-                    query: `site:${new URL(linkInput).hostname} OR "${linkInput}"`, // Tries to find content on the site or the exact link
+                    query: `site:${new URL(url).hostname} OR "${url}"`,
                     search_type: 'browse',
                     num_results: 1,
                     callback: (result) => {
@@ -135,549 +444,153 @@ export default function App() {
                     }
                 });
             });
-
-            if (!browsedContent) {
-                throw new Error("Could not browse content for the provided link.");
-            }
-
-            // Step 2: Use an LLM to extract heading and keywords from the browsed content
-            const prompt = `Given the following text content from a research paper link, extract the main heading and relevant keywords.
-            Text: "${browsedContent}"
-
-            Output format:
-            Heading: [Extracted Heading]
-            Keywords: [Keyword1, Keyword2, Keyword3,...]`;
-
-            // Check if window.ai.generateText is available in the environment
-            if (typeof window.ai === 'undefined' || typeof window.ai.generateText !== 'function') {
-                throw new Error("LLM generation tool (window.ai.generateText) is not available in this environment.");
-            }
-
-            const llmResult = await window.ai.generateText({ prompt: prompt });
-            const generatedText = llmResult.text;
-
-            // Parse the LLM output
-            const headingMatch = generatedText.match(/Heading: (.*)/);
-            const keywordsMatch = generatedText.match(/Keywords: (.*)/);
-
-            if (headingMatch && keywordsMatch) {
-                setHeadingInput(headingMatch[1].trim());
-                setKeywordsInput(keywordsMatch[1].trim());
-                showMessage("Heading and keywords extracted successfully! ✨", "success");
-            } else {
-                setError("Could not extract heading and keywords. Please check the link or try manual entry.");
-            }
-
-        } catch (err) {
-            console.error("Extraction Error:", err);
-            setError(`Failed to extract data: ${err.message}. Please try manual entry or a different link.`);
-        } finally {
-            setIsLoading(false);
         }
-    };
 
-    // Function to handle summarizing a paper using LLM
-    const handleSummarizePaper = async (paperLink, paperTitle) => {
-        setIsLoading(true);
-        setError('');
-        setCurrentSummary('');
-        setCurrentPaperTitleForSummary(paperTitle);
+        async function generateTextWithLLM(prompt) {
+            if (typeof window.ai === 'undefined' || typeof window.ai.generateText !== 'function') {
+                throw new Error("LLM generation tool (window.ai.generateText) is not available in this environment. Cannot extract or summarize automatically.");
+            }
+            const llmResult = await window.ai.generateText({ prompt: prompt });
+            return llmResult.text;
+        }
 
-        try {
-            // Use google_search to find the content related to the link
-            const browsedContent = await new Promise((resolve, reject) => {
-                // Check if window.google_search is available in the environment
-                if (typeof window.google_search !== 'function') {
-                    reject(new Error("Browser content fetching tool (window.google_search) is not available in this environment."));
-                    return;
+        // Function to extract heading and keywords using LLM
+        async function handleExtractFromLink() {
+            const link = linkInput.value.trim();
+            if (!link) {
+                showMessage("Please enter a link to extract from.", 'error');
+                return;
+            }
+            setLoading(true);
+            showMessage('Extracting...', 'success'); // Temporary loading message
+
+            try {
+                const browsedContent = await fetchContentFromLink(link);
+
+                const prompt = `Given the following text content from a research paper link, extract the main heading and relevant keywords.
+                Text: "${browsedContent}"
+
+                Output format:
+                Heading: [Extracted Heading]
+                Keywords: [Keyword1, Keyword2, Keyword3,...]`;
+
+                const generatedText = await generateTextWithLLM(prompt);
+
+                const headingMatch = generatedText.match(/Heading: (.*)/);
+                const keywordsMatch = generatedText.match(/Keywords: (.*)/);
+
+                if (headingMatch && keywordsMatch) {
+                    headingInput.value = headingMatch[1].trim();
+                    keywordsInput.value = keywordsMatch[1].trim();
+                    showMessage("Heading and keywords extracted successfully! ✨", "success");
+                } else {
+                    showMessage("Could not extract heading and keywords. Please check the link or try manual entry.", 'error');
                 }
-                window.google_search({
-                    query: `site:${new URL(paperLink).hostname} OR "${paperLink}"`,
-                    search_type: 'browse',
-                    num_results: 1,
-                    callback: (result) => {
-                        if (result.results && result.results.length > 0 && result.results[0].snippet) {
-                            resolve(result.results[0].snippet);
-                        } else {
-                            reject(new Error("No browsable content found for the given link to summarize."));
-                        }
-                    }
-                });
-            });
 
-            if (!browsedContent) {
-                throw new Error("Could not browse content for summarization.");
+            } catch (err) {
+                console.error("Extraction Error:", err);
+                showMessage(`Failed to extract data: ${err.message}. Please try manual entry or a different link.`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // Function to handle summarizing a paper using LLM
+        async function handleSummarizePaper(paperLink, paperTitle) {
+            setLoading(true);
+            showMessage('Generating summary...', 'success'); // Temporary loading message
+            summaryModalHeader.textContent = `Summary for: ${paperTitle}`;
+            summaryModalBody.textContent = 'Loading summary...';
+            summaryModal.style.display = 'flex'; // Show modal immediately
+
+            try {
+                const browsedContent = await fetchContentFromLink(paperLink);
+
+                const prompt = `Summarize the following research paper content concisely, focusing on its main findings, methods, and conclusions.
+                Content: "${browsedContent}"`;
+
+                const generatedSummary = await generateTextWithLLM(prompt);
+
+                summaryModalBody.textContent = generatedSummary;
+                showMessage("Paper summarized successfully! ✨", "success");
+
+            } catch (err) {
+                console.error("Summarization Error:", err);
+                summaryModalBody.textContent = `Error: ${err.message}. Could not generate summary.`;
+                showMessage(`Failed to summarize paper: ${err.message}.`, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        // --- Event Handlers ---
+
+        // Handle adding a new paper
+        paperForm.addEventListener('submit', (e) => {
+            e.preventDefault(); // Prevent default form submission
+
+            const link = linkInput.value.trim();
+            const heading = headingInput.value.trim();
+            const keywords = keywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k !== '');
+
+            if (!link || !heading || keywords.length === 0) {
+                showMessage('Please fill in all fields (link, heading, and at least one keyword).', 'error');
+                return;
             }
 
-            const prompt = `Summarize the following research paper content concisely, focusing on its main findings, methods, and conclusions.
-            Content: "${browsedContent}"`;
+            const newPaper = {
+                id: Date.now(), // Simple unique ID
+                link,
+                heading,
+                keywords
+            };
 
-            // Check if window.ai.generateText is available in the environment
-            if (typeof window.ai === 'undefined' || typeof window.ai.generateText !== 'function') {
-                throw new Error("LLM generation tool (window.ai.generateText) is not available in this environment.");
+            papers.push(newPaper);
+            savePapers(); // Save to local storage
+            renderPapers(); // Re-render the list
+            paperForm.reset(); // Clear the form
+            showMessage('Paper added successfully!', 'success');
+        });
+
+        // Handle initiating delete confirmation
+        function handleDeleteClick(id) {
+            paperToDeleteId = id;
+            confirmModal.style.display = 'flex';
+        }
+
+        // Handle confirming deletion
+        confirmDeleteBtn.addEventListener('click', () => {
+            if (paperToDeleteId !== null) {
+                papers = papers.filter(paper => paper.id !== paperToDeleteId);
+                savePapers();
+                renderPapers();
+                showMessage('Paper deleted.', 'success');
+                paperToDeleteId = null; // Reset
             }
+            confirmModal.style.display = 'none';
+        });
 
-            const llmResult = await window.ai.generateText({ prompt: prompt });
-            const generatedSummary = llmResult.text;
+        // Handle canceling deletion
+        cancelDeleteBtn.addEventListener('click', () => {
+            paperToDeleteId = null; // Reset
+            confirmModal.style.display = 'none';
+        });
 
-            setCurrentSummary(generatedSummary);
-            setShowSummaryModal(true);
-            showMessage("Paper summarized successfully! ✨", "success");
+        // Close summary modal
+        summaryModalCloseButton.addEventListener('click', () => {
+            summaryModal.style.display = 'none';
+        });
 
-        } catch (err) {
-            console.error("Summarization Error:", err);
-            setError(`Failed to summarize paper: ${err.message}.`);
-            setCurrentSummary("Error: Could not generate summary.");
-            setShowSummaryModal(true); // Still show modal to display error
-        } finally {
-            setIsLoading(false);
-        }
-    };
+        // Attach extract button event listener
+        extractButton.addEventListener('click', handleExtractFromLink);
 
-    // Function to add a paper to Firestore
-    const handleAddPaper = async (e) => {
-        e.preventDefault();
-        if (!linkInput || !headingInput || !keywordsInput) {
-            setError("All fields are required to add a paper.");
-            return;
-        }
-        if (!db || !userId) {
-            setError("Database not ready. Please wait or refresh.");
-            return;
-        }
+        // --- Initial Load ---
 
-        setIsLoading(true);
-        setError('');
-
-        try {
-            const papersCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/researchPapers`);
-            await addDoc(papersCollectionRef, {
-                link: linkInput,
-                heading: headingInput,
-                keywords: keywordsInput.split(',').map(k => k.trim()).filter(k => k !== ''), // Store keywords as an array, filter empty
-                timestamp: new Date()
-            });
-            setLinkInput('');
-            setHeadingInput('');
-            setKeywordsInput('');
-            showMessage("Paper added successfully!", "success");
-        } catch (err) {
-            console.error("Error adding document: ", err);
-            setError("Failed to add paper. Please try again.");
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Function to initiate delete confirmation
-    const handleDeleteClick = (paperId) => {
-        setPaperToDeleteId(paperId);
-        setShowConfirmModal(true);
-    };
-
-    // Function to confirm and perform deletion
-    const confirmDelete = async () => {
-        if (!paperToDeleteId) return;
-
-        setIsLoading(true);
-        setError('');
-        try {
-            const paperDocRef = doc(db, `artifacts/${appId}/users/${userId}/researchPapers`, paperToDeleteId);
-            await deleteDoc(paperDocRef);
-            showMessage("Paper deleted successfully!", "success");
-        } catch (err) {
-            console.error("Error deleting document: ", err);
-            setError("Failed to delete paper. Please try again.");
-        } finally {
-            setIsLoading(false);
-            setShowConfirmModal(false);
-            setPaperToDeleteId(null);
-        }
-    };
-
-    // Function to cancel deletion
-    const cancelDelete = () => {
-        setShowConfirmModal(false);
-        setPaperToDeleteId(null);
-    };
-
-    // Group papers by heading for display
-    const groupedPapers = papers.reduce((acc, paper) => {
-        const firstLetter = paper.heading.charAt(0).toUpperCase();
-        if (!acc[firstLetter]) {
-            acc[firstLetter] = [];
-        }
-        acc[firstLetter].push(paper);
-        return acc;
-    }, {});
-
-    const sortedLetters = Object.keys(groupedPapers).sort();
-
-    if (!isAuthReady) {
-        return <div style={styles.loadingContainer}>Loading authentication...</div>;
-    }
-
-    return (
-        <div style={styles.container}>
-            <h1 style={styles.header}>Research Paper Collector</h1>
-            {userId && <p style={styles.userIdDisplay}>User ID: {userId}</p>}
-
-            {error && <p style={styles.error}>{error}</p>}
-            {message.text && <p style={message.type === 'success' ? styles.success : styles.error}>{message.text}</p>}
-
-            <form onSubmit={handleAddPaper} style={styles.form}>
-                <div style={styles.inputGroup}>
-                    <label htmlFor="link" style={styles.label}>Paper Link:</label>
-                    <input
-                        type="url"
-                        id="link"
-                        value={linkInput}
-                        onChange={(e) => setLinkInput(e.target.value)}
-                        placeholder="e.g., https://arxiv.org/abs/2301.00001"
-                        style={styles.input}
-                        required
-                    />
-                    <button type="button" onClick={handleExtractFromLink} disabled={isLoading} style={styles.extractButton}>
-                        {isLoading ? 'Extracting...' : 'Extract Title & Keywords ✨'}
-                    </button>
-                </div>
-
-                <div style={styles.inputGroup}>
-                    <label htmlFor="heading" style={styles.label}>Paper Heading:</label>
-                    <input
-                        type="text"
-                        id="heading"
-                        value={headingInput}
-                        onChange={(e) => setHeadingInput(e.target.value)}
-                        placeholder="e.g., A Novel Approach to AI"
-                        style={styles.input}
-                        required
-                    />
-                </div>
-
-                <div style={styles.inputGroup}>
-                    <label htmlFor="keywords" style={styles.label}>Keywords (comma-separated):</label>
-                    <input
-                        type="text"
-                        id="keywords"
-                        value={keywordsInput}
-                        onChange={(e) => setKeywordsInput(e.target.value)}
-                        placeholder="e.g., AI, Machine Learning, Research"
-                        style={styles.input}
-                        required
-                    />
-                </div>
-
-                <button type="submit" disabled={isLoading} style={styles.button}>
-                    {isLoading ? 'Adding Paper...' : 'Add Paper'}
-                </button>
-            </form>
-
-            <h2 style={styles.listHeader}>Collected Papers</h2>
-            {papers.length === 0 && !isLoading ? (
-                <p style={styles.noPapers}>No papers collected yet. Add one above!</p>
-            ) : (
-                <div style={styles.paperListContainer}>
-                    {sortedLetters.map(letter => (
-                        <div key={letter} style={styles.letterGroup}>
-                            <h3 style={styles.letterHeading}>{letter}</h3>
-                            <ul style={styles.paperList}>
-                                {groupedPapers[letter].map(paper => (
-                                    <li key={paper.id} style={styles.paperItem}>
-                                        <a href={paper.link} target="_blank" rel="noopener noreferrer" style={styles.paperLink}>
-                                            {paper.heading}
-                                        </a>
-                                        <p style={styles.keywords}>Keywords: {paper.keywords.join(', ')}</p>
-                                        <div style={styles.paperActions}>
-                                            <button
-                                                onClick={() => handleSummarizePaper(paper.link, paper.heading)}
-                                                disabled={isLoading}
-                                                style={styles.actionButton}
-                                            >
-                                                Summarize ✨
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteClick(paper.id)}
-                                                disabled={isLoading}
-                                                style={{ ...styles.actionButton, ...styles.deleteButton }}
-                                            >
-                                                Delete
-                                            </button>
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                        </div>
-                    ))}
-                </div>
-            )}
-
-            {/* Summary Modal */}
-            {showSummaryModal && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContent}>
-                        <h3 style={styles.modalHeader}>Summary for: {currentPaperTitleForSummary}</h3>
-                        <p style={styles.modalBody}>{currentSummary}</p>
-                        <button onClick={() => setShowSummaryModal(false)} style={styles.modalCloseButton}>Close</button>
-                    </div>
-                </div>
-            )}
-
-            {/* Confirmation Modal for Delete */}
-            {showConfirmModal && (
-                <div style={styles.modalOverlay}>
-                    <div style={styles.modalContent}>
-                        <h3 style={styles.modalHeader}>Confirm Deletion</h3>
-                        <p style={styles.modalBody}>Are you sure you want to delete this paper?</p>
-                        <div style={styles.modalActions}>
-                            <button onClick={confirmDelete} disabled={isLoading} style={{ ...styles.actionButton, ...styles.deleteButton }}>
-                                {isLoading ? 'Deleting...' : 'Yes, Delete'}
-                            </button>
-                            <button onClick={cancelDelete} disabled={isLoading} style={styles.actionButton}>
-                                Cancel
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-}
-
-// Basic styling for the application
-const styles = {
-    container: {
-        fontFamily: 'Inter, Arial, sans-serif',
-        maxWidth: '800px',
-        margin: '20px auto',
-        padding: '20px',
-        border: '1px solid #ddd',
-        borderRadius: '8px',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-        backgroundColor: '#f9f9f9',
-    },
-    header: {
-        textAlign: 'center',
-        color: '#333',
-        marginBottom: '20px',
-    },
-    userIdDisplay: {
-        textAlign: 'center',
-        fontSize: '0.8em',
-        color: '#666',
-        marginBottom: '20px',
-        wordBreak: 'break-all',
-    },
-    form: {
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '8px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-        marginBottom: '30px',
-    },
-    inputGroup: {
-        marginBottom: '15px',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    label: {
-        marginBottom: '5px',
-        fontWeight: 'bold',
-        color: '#555',
-    },
-    input: {
-        padding: '10px',
-        border: '1px solid #ccc',
-        borderRadius: '4px',
-        fontSize: '16px',
-        width: 'calc(100% - 22px)', // Adjust for padding and border
-        boxSizing: 'border-box',
-    },
-    extractButton: {
-        marginTop: '10px',
-        padding: '10px 15px',
-        backgroundColor: '#007bff',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        alignSelf: 'flex-start',
-        transition: 'background-color 0.2s ease',
-    },
-    button: {
-        padding: '12px 20px',
-        backgroundColor: '#28a745',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '18px',
-        width: '100%',
-        marginTop: '10px',
-        transition: 'background-color 0.2s ease',
-    },
-    actionButton: {
-        padding: '8px 12px',
-        backgroundColor: '#6c757d',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '0.9em',
-        marginRight: '8px',
-        transition: 'background-color 0.2s ease',
-    },
-    deleteButton: {
-        backgroundColor: '#dc3545',
-    },
-    buttonDisabled: {
-        backgroundColor: '#cccccc',
-        cursor: 'not-allowed',
-    },
-    error: {
-        color: 'red',
-        backgroundColor: '#ffe0e0',
-        border: '1px solid red',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '20px',
-        textAlign: 'center',
-    },
-    success: {
-        color: '#28a745',
-        backgroundColor: '#d4edda',
-        border: '1px solid #c3e6cb',
-        padding: '10px',
-        borderRadius: '4px',
-        marginBottom: '20px',
-        textAlign: 'center',
-    },
-    listHeader: {
-        color: '#333',
-        marginBottom: '20px',
-        borderBottom: '2px solid #eee',
-        paddingBottom: '10px',
-    },
-    paperListContainer: {
-        backgroundColor: '#fff',
-        padding: '20px',
-        borderRadius: '8px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
-    },
-    letterGroup: {
-        marginBottom: '25px',
-    },
-    letterHeading: {
-        backgroundColor: '#e9ecef',
-        padding: '8px 15px',
-        borderRadius: '4px',
-        marginBottom: '15px',
-        color: '#495057',
-        fontSize: '1.2em',
-    },
-    paperList: {
-        listStyleType: 'none',
-        padding: 0,
-        margin: 0,
-    },
-    paperItem: {
-        backgroundColor: '#f8f9fa',
-        border: '1px solid #dee2e6',
-        borderRadius: '5px',
-        padding: '15px',
-        marginBottom: '10px',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    paperLink: {
-        fontSize: '1.1em',
-        color: '#007bff',
-        textDecoration: 'none',
-        fontWeight: 'bold',
-        marginBottom: '5px',
-    },
-    paperLinkHover: {
-        textDecoration: 'underline',
-    },
-    keywords: {
-        fontSize: '0.9em',
-        color: '#6c757d',
-        fontStyle: 'italic',
-        marginTop: '5px',
-    },
-    paperActions: {
-        marginTop: '10px',
-        display: 'flex',
-        gap: '8px',
-    },
-    noPapers: {
-        textAlign: 'center',
-        color: '#6c757d',
-        padding: '20px',
-        border: '1px dashed #ced4da',
-        borderRadius: '5px',
-    },
-    loadingContainer: {
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        height: '100vh',
-        fontSize: '20px',
-        color: '#555',
-    },
-    // Modal Styles
-    modalOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 1000,
-    },
-    modalContent: {
-        backgroundColor: 'white',
-        padding: '30px',
-        borderRadius: '8px',
-        boxShadow: '0 4px 15px rgba(0, 0, 0, 0.2)',
-        maxWidth: '500px',
-        width: '90%',
-        maxHeight: '80vh',
-        overflowY: 'auto',
-        position: 'relative',
-    },
-    modalHeader: {
-        fontSize: '1.4em',
-        marginBottom: '15px',
-        color: '#2c3e50',
-        textAlign: 'center',
-    },
-    modalBody: {
-        fontSize: '1em',
-        lineHeight: '1.6',
-        color: '#555',
-        marginBottom: '20px',
-    },
-    modalCloseButton: {
-        padding: '10px 20px',
-        backgroundColor: '#007bff',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '1em',
-        display: 'block',
-        margin: '0 auto',
-        transition: 'background-color 0.2s ease',
-    },
-    modalActions: {
-        display: 'flex',
-        justifyContent: 'center',
-        gap: '15px',
-        marginTop: '20px',
-    },
-};
+        // Load papers when the page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            loadPapers();
+            renderPapers();
+        });
+    </script>
+</body>
+</html>
