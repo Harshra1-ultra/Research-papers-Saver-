@@ -90,17 +90,17 @@
             border: 1px solid #e0e0e0;
             background-color: #f9fbfb;
         }
-        .letter-group {
-            margin-bottom: 25px;
+        .keyword-group {
+            margin-bottom: 30px;
         }
-        .letter-heading {
+        .keyword-heading {
             background-color: #e9ecef;
             padding: 10px 15px;
             border-radius: 5px;
             margin-bottom: 15px;
             color: #495057;
             font-size: 1.3em;
-            text-transform: uppercase;
+            text-transform: capitalize; /* Capitalize each keyword heading */
         }
         ul {
             list-style-type: none;
@@ -128,7 +128,7 @@
         .paper-link:hover {
             text-decoration: underline;
         }
-        .keywords {
+        .keywords-display { /* Renamed from .keywords to avoid conflict with keyword groups */
             font-size: 0.95em;
             color: #6c757d;
             font-style: italic;
@@ -176,7 +176,7 @@
                 </div>
 
                 <div class="form-group">
-                    <label for="heading">Paper Heading:</label>
+                    <label for="heading">Paper Heading (Title):</label>
                     <input type="text" id="heading" placeholder="e.g., A Novel Approach to AI" required>
                 </div>
 
@@ -190,7 +190,7 @@
             <p id="message" class="error" style="display:none;"></p>
         </div>
 
-        <h2 style="margin-top: 40px;">Collected Papers</h2>
+        <h2 style="margin-top: 40px;">Collected Papers by Keyword</h2>
         <div id="paperListContainer" class="paper-list-section">
             <div id="paperList">
                 <p class="no-papers">No papers collected yet. Add one above!</p>
@@ -245,32 +245,38 @@
                 return;
             }
 
-            // Sort papers alphabetically by heading
-            const sortedPapers = [...papers].sort((a, b) => a.heading.localeCompare(b.heading));
+            // Create a map to group papers by keyword
+            const keywordGroups = {};
 
-            // Group papers by the first letter of their heading
-            const groupedPapers = sortedPapers.reduce((acc, paper) => {
-                const firstLetter = paper.heading.charAt(0).toUpperCase();
-                if (!acc[firstLetter]) {
-                    acc[firstLetter] = [];
-                }
-                acc[firstLetter].push(paper);
-                return acc;
-            }, {});
+            // Populate keywordGroups
+            papers.forEach(paper => {
+                paper.keywords.forEach(keyword => {
+                    const normalizedKeyword = keyword.toLowerCase(); // Use lowercase for grouping
+                    if (!keywordGroups[normalizedKeyword]) {
+                        keywordGroups[normalizedKeyword] = [];
+                    }
+                    keywordGroups[normalizedKeyword].push(paper);
+                });
+            });
 
-            // Render each letter group
-            const sortedLetters = Object.keys(groupedPapers).sort();
-            sortedLetters.forEach(letter => {
-                const letterGroupDiv = document.createElement('div');
-                letterGroupDiv.className = 'letter-group';
+            // Sort keywords alphabetically
+            const sortedKeywords = Object.keys(keywordGroups).sort();
 
-                const letterHeading = document.createElement('h3');
-                letterHeading.className = 'letter-heading';
-                letterHeading.textContent = letter;
-                letterGroupDiv.appendChild(letterHeading);
+            // Render each keyword group
+            sortedKeywords.forEach(keyword => {
+                const keywordGroupDiv = document.createElement('div');
+                keywordGroupDiv.className = 'keyword-group';
+
+                const keywordHeading = document.createElement('h3');
+                keywordHeading.className = 'keyword-heading';
+                keywordHeading.textContent = keyword; // Display the keyword
+                keywordGroupDiv.appendChild(keywordHeading);
 
                 const ul = document.createElement('ul');
-                groupedPapers[letter].forEach(paper => {
+                // Sort papers within each keyword group by their heading
+                const papersInGroup = [...keywordGroups[keyword]].sort((a, b) => a.heading.localeCompare(b.heading));
+
+                papersInGroup.forEach(paper => {
                     const li = document.createElement('li');
                     li.className = 'paper-item';
                     li.setAttribute('data-id', paper.id); // Store ID for deletion
@@ -284,7 +290,7 @@
                     li.appendChild(link);
 
                     const keywordsP = document.createElement('p');
-                    keywordsP.className = 'keywords';
+                    keywordsP.className = 'keywords-display'; // Use different class name to avoid confusion
                     keywordsP.textContent = `Keywords: ${paper.keywords.join(', ')}`;
                     li.appendChild(keywordsP);
 
@@ -296,8 +302,8 @@
 
                     ul.appendChild(li);
                 });
-                letterGroupDiv.appendChild(ul);
-                paperList.appendChild(letterGroupDiv);
+                keywordGroupDiv.appendChild(ul);
+                paperList.appendChild(keywordGroupDiv);
             });
         }
 
@@ -320,7 +326,7 @@
                 id: Date.now(), // Simple unique ID
                 link,
                 heading,
-                keywords
+                keywords // Stored as an array of trimmed strings
             };
 
             papers.push(newPaper);
