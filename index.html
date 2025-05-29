@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Simple Research Paper Collector</title>
+    <title>Research Paper Collector - Keywords</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -33,6 +33,7 @@
         }
         .form-group {
             margin-bottom: 18px;
+            position: relative; /* For datalist positioning */
         }
         label {
             display: block;
@@ -90,17 +91,17 @@
             border: 1px solid #e0e0e0;
             background-color: #f9fbfb;
         }
-        .letter-group {
-            margin-bottom: 25px;
+        .keyword-group { /* Renamed from letter-group */
+            margin-bottom: 30px;
         }
-        .letter-heading {
+        .keyword-heading { /* Renamed from letter-heading */
             background-color: #e9ecef;
             padding: 10px 15px;
             border-radius: 5px;
             margin-bottom: 15px;
             color: #495057;
             font-size: 1.3em;
-            text-transform: uppercase;
+            text-transform: capitalize; /* Capitalize each keyword heading */
         }
         ul {
             list-style-type: none;
@@ -128,7 +129,7 @@
         .paper-link:hover {
             text-decoration: underline;
         }
-        .keywords {
+        .keywords-display { /* Renamed from .keywords to avoid conflict with keyword groups */
             font-size: 0.95em;
             color: #6c757d;
             font-style: italic;
@@ -241,7 +242,8 @@
 
                 <div class="form-group">
                     <label for="keywords">Keywords (comma-separated):</label>
-                    <input type="text" id="keywords" placeholder="e.g., AI, Machine Learning, Research" required>
+                    <input type="text" id="keywords" placeholder="e.g., AI, Machine Learning, Research" list="keyword-suggestions" required>
+                    <datalist id="keyword-suggestions"></datalist>
                 </div>
 
                 <button type="submit" id="addPaperBtn">Add Paper</button>
@@ -249,7 +251,7 @@
             <p id="message" class="error" style="display:none;"></p>
         </div>
 
-        <h2 style="margin-top: 40px;">Collected Papers</h2>
+        <h2 style="margin-top: 40px;">Collected Papers by Keyword</h2>
         <div id="paperListContainer" class="paper-list-section">
             <div id="paperList">
                 <p class="no-papers">No papers collected yet. Add one above!</p>
@@ -273,6 +275,7 @@
         const linkInput = document.getElementById('link');
         const headingInput = document.getElementById('heading');
         const keywordsInput = document.getElementById('keywords');
+        const keywordSuggestionsDatalist = document.getElementById('keyword-suggestions');
         const paperList = document.getElementById('paperList');
         const messageDisplay = document.getElementById('message');
         const addPaperBtn = document.getElementById('addPaperBtn');
@@ -283,6 +286,7 @@
         const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
 
         let papers = []; // This will hold our paper data
+        let uniqueKeywords = new Set(); // To store all unique keywords for suggestions
         let paperToDeleteId = null; // To store the ID of the paper to be deleted
 
         // --- Utility Functions ---
@@ -299,17 +303,22 @@
 
         // --- Data Storage and Retrieval ---
 
-        // Load papers from Local Storage
-        function loadPapers() {
+        // Load papers and keywords from Local Storage
+        function loadData() {
             const storedPapers = localStorage.getItem('researchPapers');
             if (storedPapers) {
                 papers = JSON.parse(storedPapers);
             }
+            const storedKeywords = localStorage.getItem('uniqueKeywords');
+            if (storedKeywords) {
+                uniqueKeywords = new Set(JSON.parse(storedKeywords));
+            }
         }
 
-        // Save papers to Local Storage
-        function savePapers() {
+        // Save papers and keywords to Local Storage
+        function saveData() {
             localStorage.setItem('researchPapers', JSON.stringify(papers));
+            localStorage.setItem('uniqueKeywords', JSON.stringify(Array.from(uniqueKeywords)));
         }
 
         // --- Rendering Papers ---
@@ -322,32 +331,38 @@
                 return;
             }
 
-            // Sort papers alphabetically by heading
-            const sortedPapers = [...papers].sort((a, b) => a.heading.localeCompare(b.heading));
+            // Create a map to group papers by keyword
+            const keywordGroups = {};
 
-            // Group papers by the first letter of their heading
-            const groupedPapers = sortedPapers.reduce((acc, paper) => {
-                const firstLetter = paper.heading.charAt(0).toUpperCase();
-                if (!acc[firstLetter]) {
-                    acc[firstLetter] = [];
-                }
-                acc[firstLetter].push(paper);
-                return acc;
-            }, {});
+            // Populate keywordGroups
+            papers.forEach(paper => {
+                paper.keywords.forEach(keyword => {
+                    const normalizedKeyword = keyword.toLowerCase(); // Use lowercase for grouping
+                    if (!keywordGroups[normalizedKeyword]) {
+                        keywordGroups[normalizedKeyword] = [];
+                    }
+                    keywordGroups[normalizedKeyword].push(paper);
+                });
+            });
 
-            // Render each letter group
-            const sortedLetters = Object.keys(groupedPapers).sort();
-            sortedLetters.forEach(letter => {
-                const letterGroupDiv = document.createElement('div');
-                letterGroupDiv.className = 'letter-group';
+            // Sort keywords alphabetically
+            const sortedKeywords = Object.keys(keywordGroups).sort();
 
-                const letterHeading = document.createElement('h3');
-                letterHeading.className = 'letter-heading';
-                letterHeading.textContent = letter;
-                letterGroupDiv.appendChild(letterHeading);
+            // Render each keyword group
+            sortedKeywords.forEach(keyword => {
+                const keywordGroupDiv = document.createElement('div');
+                keywordGroupDiv.className = 'keyword-group';
+
+                const keywordHeading = document.createElement('h3');
+                keywordHeading.className = 'keyword-heading';
+                keywordHeading.textContent = keyword; // Display the keyword
+                keywordGroupDiv.appendChild(keywordHeading);
 
                 const ul = document.createElement('ul');
-                groupedPapers[letter].forEach(paper => {
+                // Sort papers within each keyword group by their heading
+                const papersInGroup = [...keywordGroups[keyword]].sort((a, b) => a.heading.localeCompare(b.heading));
+
+                papersInGroup.forEach(paper => {
                     const li = document.createElement('li');
                     li.className = 'paper-item';
                     li.setAttribute('data-id', paper.id); // Store ID for deletion
@@ -361,7 +376,7 @@
                     li.appendChild(link);
 
                     const keywordsP = document.createElement('p');
-                    keywordsP.className = 'keywords';
+                    keywordsP.className = 'keywords-display'; // Use different class name to avoid confusion
                     keywordsP.textContent = `Keywords: ${paper.keywords.join(', ')}`;
                     li.appendChild(keywordsP);
 
@@ -373,8 +388,20 @@
 
                     ul.appendChild(li);
                 });
-                letterGroupDiv.appendChild(ul);
-                paperList.appendChild(letterGroupDiv);
+                keywordGroupDiv.appendChild(ul);
+                paperList.appendChild(keywordGroupDiv);
+            });
+        }
+
+        // --- Keyword Suggestion Rendering ---
+
+        function renderKeywordSuggestions() {
+            keywordSuggestionsDatalist.innerHTML = ''; // Clear existing options
+            const sortedUniqueKeywords = Array.from(uniqueKeywords).sort();
+            sortedUniqueKeywords.forEach(keyword => {
+                const option = document.createElement('option');
+                option.value = keyword;
+                keywordSuggestionsDatalist.appendChild(option);
             });
         }
 
@@ -386,7 +413,8 @@
 
             const link = linkInput.value.trim();
             const heading = headingInput.value.trim();
-            const keywords = keywordsInput.value.trim().split(',').map(k => k.trim()).filter(k => k !== '');
+            const keywordsRaw = keywordsInput.value.trim();
+            const keywords = keywordsRaw.split(',').map(k => k.trim()).filter(k => k !== '');
 
             if (!link || !heading || keywords.length === 0) {
                 showMessage('Please fill in all fields (link, heading, and at least one keyword).', 'error');
@@ -401,8 +429,13 @@
             };
 
             papers.push(newPaper);
-            savePapers(); // Save to local storage
+
+            // Add new keywords to the unique set
+            keywords.forEach(k => uniqueKeywords.add(k));
+
+            saveData(); // Save to local storage
             renderPapers(); // Re-render the list
+            renderKeywordSuggestions(); // Update suggestions
             paperForm.reset(); // Clear the form
             showMessage('Paper added successfully!', 'success');
         });
@@ -417,8 +450,16 @@
         confirmDeleteBtn.addEventListener('click', () => {
             if (paperToDeleteId !== null) {
                 papers = papers.filter(paper => paper.id !== paperToDeleteId);
-                savePapers();
-                renderPapers();
+                
+                // Re-evaluate unique keywords after deletion
+                uniqueKeywords.clear();
+                papers.forEach(paper => {
+                    paper.keywords.forEach(k => uniqueKeywords.add(k));
+                });
+
+                saveData(); // Save to local storage
+                renderPapers(); // Re-render the list
+                renderKeywordSuggestions(); // Update suggestions
                 showMessage('Paper deleted.', 'success');
                 paperToDeleteId = null; // Reset
             }
@@ -433,10 +474,11 @@
 
         // --- Initial Load ---
 
-        // Load papers when the page loads
+        // Load data and render papers and suggestions when the page loads
         document.addEventListener('DOMContentLoaded', () => {
-            loadPapers();
+            loadData();
             renderPapers();
+            renderKeywordSuggestions();
         });
     </script>
 </body>
